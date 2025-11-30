@@ -1,0 +1,408 @@
+#include <winsock2.h>
+#include <windows.h>
+#include <winhttp.h>
+#include <shellapi.h>
+
+#include <string>
+#include <sstream>
+#include <iostream>
+#include <vector>
+#include <fstream>
+#pragma comment(lib, "winhttp.lib")  // MSVC 用，MinGW 不一定生效，仍建议用 -lwinhttp
+
+// 控件 ID
+#define IDC_EDIT_USERNAME   1001
+#define IDC_EDIT_PASSWORD   1002
+#define IDC_EDIT_PASSWORD2  1003
+#define IDC_EDIT_EMAIL      1004
+#define IDC_BUTTON_REGISTER 2001
+#define IDC_BUTTON_START    2002
+
+// 全局保存控件句柄
+HWND g_hEditUsername = NULL;
+HWND g_hEditPassword = NULL;
+HWND g_hEditPassword2 = NULL;
+HWND g_hEditEmail = NULL;
+using namespace std;
+// ---------- 工具：窄字符串转宽字符串 ----------
+std::wstring AnsiToWide(const std::string& s)
+{
+    int len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), -1, NULL, 0);
+    if (len <= 0) return L"";
+    std::wstring ws(len - 1, L'\0');
+    MultiByteToWideChar(CP_ACP, 0, s.c_str(), -1, &ws[0], len);
+    return ws;
+}
+
+
+// UTF-8 字符串转宽字符串
+std::wstring Utf8ToWide(const std::string& s)
+{
+    int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, NULL, 0);
+    if (len <= 0) return L"";
+    std::wstring ws(len - 1, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, &ws[0], len);
+    return ws;
+}
+
+bool HttpPostRegister(const std::string& username,
+                      const std::string& password,
+                      const std::string& password2,
+                      const std::string& email,
+                      std::string& outResponse)
+{
+    outResponse.clear();
+
+    // ======== 可修改配置 ========
+    std::string WEB_HOST = "wow.chenmin.org";  // ★修改成你的服务器IP
+    int         WEB_PORT = 80;                // ★端口：http默认80，HTTPS先别用
+    std::string WEB_PATH = "/register.php";   // ★PHP文件路径
+    // ============================
+
+    // POST body
+    std::string data =
+        "username=" + username +
+        "&password=" + password +
+        "&password2=" + password2 +
+        "&email=" + email;
+
+    // 转宽字串
+    std::wstring hostW  = AnsiToWide(WEB_HOST);
+    std::wstring pathW  = AnsiToWide(WEB_PATH);
+
+    HINTERNET hSession = WinHttpOpen(L"WoWLauncher/1.0",
+                                     WINHTTP_ACCESS_TYPE_NO_PROXY,
+                                     WINHTTP_NO_PROXY_NAME,
+                                     WINHTTP_NO_PROXY_BYPASS,
+                                     0);
+    if (!hSession) return false;
+
+    HINTERNET hConnect = WinHttpConnect(hSession, hostW.c_str(), WEB_PORT, 0);
+    if (!hConnect) { WinHttpCloseHandle(hSession); return false; }
+
+    HINTERNET hRequest = WinHttpOpenRequest(hConnect,
+                                            L"POST",
+                                            pathW.c_str(),
+                                            NULL,
+                                            WINHTTP_NO_REFERER,
+                                            WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                            0);
+    if (!hRequest) {
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        return false;
+    }
+
+    LPCWSTR headers = L"Content-Type: application/x-www-form-urlencoded\r\n";
+    BOOL bOK = WinHttpSendRequest(hRequest,
+                                  headers,
+                                  -1,
+                                  (LPVOID)data.c_str(),
+                                  data.length(),
+                                  data.length(),
+                                  0);
+
+    if (!bOK || !WinHttpReceiveResponse(hRequest, NULL)) {
+        WinHttpCloseHandle(hRequest); WinHttpCloseHandle(hConnect); WinHttpCloseHandle(hSession);
+        return false;
+    }
+
+    DWORD size = 0;
+    while (WinHttpQueryDataAvailable(hRequest, &size) && size > 0) {
+        std::string buf(size, '\0');
+        DWORD read = 0;
+        WinHttpReadData(hRequest, &buf[0], size, &read);
+        buf.resize(read);
+        outResponse += buf;
+    }
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+
+    return true;
+}
+
+
+// ---------- 修改 Config.wtf 中的 portal ----------
+// 修改 _classic_era_\WTF\Config.wtf，第一行写入 SET portal "127.0.0.1"
+int portal()
+{
+    // 打开输入文件
+    ifstream inFile("_classic_era_\\WTF\\Config.wtf");
+    string line;
+    vector<string> lines;
+
+    if (inFile.is_open()) {
+        while (getline(inFile, line)) {
+            lines.push_back(line);
+        }
+        inFile.close();
+    }
+
+    // 如果原文件有内容，则从第二行开始保留原内容
+    int startLine = !lines.empty() ? 1 : 0;
+
+    // 重新写输出文件
+    ofstream outFile("_classic_era_\\WTF\\Config.wtf", ios::trunc);
+    if (!outFile.is_open()) {
+        cout << "无法打开 Config.wtf 进行写入。" << endl;
+        return 1;
+    }
+
+    // 写入新内容
+    outFile << "SET portal \"wow.chenmin.org\"\n";
+
+    // 写入原有内容（从第二行开始）
+    for (int i = startLine; i < (int)lines.size(); ++i) {
+        outFile << lines[i] << '\n';
+    }
+
+    outFile.close();
+    cout << "已更新 Config.wtf 中的 portal 设置。" << endl;
+    return 0;
+}
+
+
+// ---------- 启动游戏逻辑：连 wow.chenmin.org:1119 成功则启动 Arctium WoW Launcher ---------- 
+void StartGame()
+{
+    portal(); // 写入 portal
+
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2,2),&wsa)!=0) return;
+
+    SOCKET s = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
+    if(s==INVALID_SOCKET){WSACleanup();return;}
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(1119); 
+    
+    hostent* he = gethostbyname("wow.chenmin.org");
+	if(he) memcpy(&addr.sin_addr, he->h_addr_list[0], he->h_length);
+
+
+    if(connect(s,(sockaddr*)&addr,sizeof(addr))==SOCKET_ERROR){
+        MessageBoxA(NULL,"无法连接 服务器","连接失败",MB_OK|MB_ICONWARNING);
+        closesocket(s);WSACleanup();return;
+    }
+
+    closesocket(s);WSACleanup();
+
+    // ?? CreateProcessW ? 游戏启动核心
+    STARTUPINFOW si{sizeof(si)};
+    PROCESS_INFORMATION pi{};
+    WCHAR cmd[] = L"Arctium WoW Launcher.exe --staticseed --version ClassicEra";
+
+    if(!CreateProcessW(NULL,cmd,NULL,NULL,FALSE,0,NULL,NULL,&si,&pi)){
+        MessageBoxA(NULL,"启动失败，找不到 Arctium WoW Launcher.exe","错误",MB_OK|MB_ICONERROR);
+        return;
+    }
+
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+}
+
+
+// ---------- 窗口过程 ----------
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg) {
+    case WM_CREATE:
+    {
+        // 创建 4 个编辑框 + 文本标签
+        CreateWindowA("STATIC", "账号：", WS_CHILD | WS_VISIBLE,
+                      20, 20, 60, 20, hwnd, NULL, NULL, NULL);
+        g_hEditUsername = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER,
+                                        90, 20, 200, 20, hwnd, (HMENU)IDC_EDIT_USERNAME, NULL, NULL);
+
+        CreateWindowA("STATIC", "密码：", WS_CHILD | WS_VISIBLE,
+                      20, 50, 60, 20, hwnd, NULL, NULL, NULL);
+        g_hEditPassword = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_PASSWORD,
+                                        90, 50, 200, 20, hwnd, (HMENU)IDC_EDIT_PASSWORD, NULL, NULL);
+
+        CreateWindowA("STATIC", "重复密码：", WS_CHILD | WS_VISIBLE,
+                      20, 80, 90, 20, hwnd, NULL, NULL, NULL);
+        g_hEditPassword2 = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_PASSWORD,
+                                         90, 80, 200, 20, hwnd, (HMENU)IDC_EDIT_PASSWORD2, NULL, NULL);
+
+        CreateWindowA("STATIC", "邮箱：", WS_CHILD | WS_VISIBLE,
+                      20, 110, 60, 20, hwnd, NULL, NULL, NULL);
+        g_hEditEmail = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER,
+                                     90, 110, 200, 20, hwnd, (HMENU)IDC_EDIT_EMAIL, NULL, NULL);
+
+        // 两个按钮
+        CreateWindowA("BUTTON", "注册账号",
+                      WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                      50, 150, 100, 30, hwnd, (HMENU)IDC_BUTTON_REGISTER, NULL, NULL);
+
+        CreateWindowA("BUTTON", "启动游戏",
+                      WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                      180, 150, 100, 30, hwnd, (HMENU)IDC_BUTTON_START, NULL, NULL);
+    }
+    break;
+
+    case WM_COMMAND:
+    {
+        int id = LOWORD(wParam);
+        if (id == IDC_BUTTON_REGISTER && HIWORD(wParam) == BN_CLICKED) {
+            // 读取输入框内容
+            char bufUser[64] = { 0 };
+            char bufPass[64] = { 0 };
+            char bufPass2[64] = { 0 };
+            char bufEmail[128] = { 0 };
+
+            GetWindowTextA(g_hEditUsername, bufUser, sizeof(bufUser));
+            GetWindowTextA(g_hEditPassword, bufPass, sizeof(bufPass));
+            GetWindowTextA(g_hEditPassword2, bufPass2, sizeof(bufPass2));
+            GetWindowTextA(g_hEditEmail, bufEmail, sizeof(bufEmail));
+
+            std::string username = bufUser;
+            std::string password = bufPass;
+            std::string password2 = bufPass2;
+            std::string email = bufEmail;
+
+            if (username.empty() || password.empty() || password2.empty() || email.empty()) {
+                MessageBoxA(hwnd, "请输入完整信息（账号、两次密码、邮箱）", "提示", MB_OK | MB_ICONINFORMATION);
+                break;
+            }
+
+            std::string resp;
+			bool ok = HttpPostRegister(username, password, password2, email, resp);
+			if (!ok) {
+			    MessageBoxA(hwnd, "请求失败，请确认本机 Web 服务器已启动。", "错误", MB_OK | MB_ICONERROR);
+			} else {
+			    // 去掉 UTF-8 BOM（EF BB BF）
+			    if (resp.size() >= 3 &&
+			        (unsigned char)resp[0] == 0xEF &&
+			        (unsigned char)resp[1] == 0xBB &&
+			        (unsigned char)resp[2] == 0xBF) {
+			        resp.erase(0, 3);
+			    }
+			
+			    bool success = false;
+			    std::string msgText;
+			
+			    // --- 非严格 JSON 解析：手动找 success 和 message 字段 ---
+			    // 1) success
+			    size_t posSucc = resp.find("\"success\"");
+			    if (posSucc != std::string::npos) {
+			        size_t posColon = resp.find(':', posSucc);
+			        if (posColon != std::string::npos) {
+			            size_t posVal = resp.find_first_not_of(" \t\r\n", posColon + 1);
+			            if (posVal != std::string::npos &&
+			                resp.compare(posVal, 4, "true") == 0) {
+			                success = true;
+			            }
+			        }
+			    }
+			
+			    // 2) message
+			    size_t posMsgKey = resp.find("\"message\"");
+			    if (posMsgKey != std::string::npos) {
+			        size_t posColon = resp.find(':', posMsgKey);
+			        if (posColon != std::string::npos) {
+			            size_t posQuote1 = resp.find('"', posColon + 1);
+			            if (posQuote1 != std::string::npos) {
+			                size_t posQuote2 = resp.find('"', posQuote1 + 1);
+			                if (posQuote2 != std::string::npos) {
+			                    msgText = resp.substr(posQuote1 + 1,
+			                                          posQuote2 - posQuote1 - 1);
+			                }
+			            }
+			        }
+			    }
+			
+			    // 如果没解析到 message，就退回显示整个 resp
+			    if (msgText.empty()) {
+			        msgText = resp;
+			    }
+			
+			    std::wstring wMsg   = Utf8ToWide(msgText);
+				std::wstring wTitle;
+				if (success) {
+				    wTitle = L"\u6CE8\u518C\u6210\u529F";  // “注册成功”
+				} else {
+				    wTitle = L"\u6CE8\u518C\u5931\u8D25";  // “注册失败”
+				}
+
+			
+			    UINT uIcon = success ? MB_ICONINFORMATION : MB_ICONERROR;
+			
+			    MessageBoxW(hwnd,
+			                wMsg.c_str(),
+			                wTitle.c_str(),
+			                MB_OK | uIcon);
+			}
+
+ 
+        }
+        else if (id == IDC_BUTTON_START && HIWORD(wParam) == BN_CLICKED) {
+            StartGame();
+        }
+    }
+    break;
+
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+
+    default:
+        return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+    return 0;
+}
+
+// ---------- WinMain ----------
+int APIENTRY WinMain(HINSTANCE hInstance,
+                     HINSTANCE hPrevInstance,
+                     LPSTR     lpCmdLine,
+                     int       nCmdShow)
+{
+    // 注册窗口类
+    WNDCLASSEXA wc = { 0 };
+    wc.cbSize = sizeof(WNDCLASSEXA);
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = "WoWLauncherWndClass";
+    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+
+    if (!RegisterClassExA(&wc)) {
+        MessageBoxA(NULL, "注册窗口类失败", "错误", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+
+    // 创建窗口
+    HWND hwnd = CreateWindowExA(
+        0,
+        "WoWLauncherWndClass",
+        "WoW 启动器 & 注册",
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        340, 250,
+        NULL,
+        NULL,
+        hInstance,
+        NULL
+    );
+
+    if (!hwnd) {
+        MessageBoxA(NULL, "创建窗口失败", "错误", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+
+    ShowWindow(hwnd, nCmdShow);
+    UpdateWindow(hwnd);
+
+    // 消息循环
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    return (int)msg.wParam;
+}
+
