@@ -2,15 +2,17 @@
 #include <windows.h>
 #include <winhttp.h>
 #include <shellapi.h>
+#include <winsparkle.h>
 
 #include <string>
 #include <sstream>
 #include <iostream>
 #include <vector>
 #include <fstream>
-#pragma comment(lib, "winhttp.lib")  // MSVC ÓÃ£¬MinGW ²»Ò»¶¨ÉúÐ§£¬ÈÔ½¨ÒéÓÃ -lwinhttp
+#pragma comment(lib, "winhttp.lib")  // MSVC ï¿½Ã£ï¿½MinGW ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½Ð§ï¿½ï¿½ï¿½Ô½ï¿½ï¿½ï¿½ï¿½ï¿½ -lwinhttp
+#pragma comment(lib, "winsparkle.lib")
 
-// ¿Ø¼þ ID
+// ï¿½Ø¼ï¿½ ID
 #define IDC_EDIT_USERNAME   1001
 #define IDC_EDIT_PASSWORD   1002
 #define IDC_EDIT_PASSWORD2  1003
@@ -18,13 +20,13 @@
 #define IDC_BUTTON_REGISTER 2001
 #define IDC_BUTTON_START    2002
 
-// È«¾Ö±£´æ¿Ø¼þ¾ä±ú
+// È«ï¿½Ö±ï¿½ï¿½ï¿½Ø¼ï¿½ï¿½ï¿½ï¿½
 HWND g_hEditUsername = NULL;
 HWND g_hEditPassword = NULL;
 HWND g_hEditPassword2 = NULL;
 HWND g_hEditEmail = NULL;
 using namespace std;
-// ---------- ¹¤¾ß£ºÕ­×Ö·û´®×ª¿í×Ö·û´® ----------
+// ---------- ï¿½ï¿½ï¿½ß£ï¿½Õ­ï¿½Ö·ï¿½ï¿½ï¿½×ªï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ ----------
 std::wstring AnsiToWide(const std::string& s)
 {
     int len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), -1, NULL, 0);
@@ -35,7 +37,7 @@ std::wstring AnsiToWide(const std::string& s)
 }
 
 
-// UTF-8 ×Ö·û´®×ª¿í×Ö·û´®
+// UTF-8 ï¿½Ö·ï¿½ï¿½ï¿½×ªï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½
 std::wstring Utf8ToWide(const std::string& s)
 {
     int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, NULL, 0);
@@ -53,10 +55,10 @@ bool HttpPostRegister(const std::string& username,
 {
     outResponse.clear();
 
-    // ======== ¿ÉÐÞ¸ÄÅäÖÃ ========
-    std::string WEB_HOST = "wow.chenmin.org";  // ¡ïÐÞ¸Ä³ÉÄãµÄ·þÎñÆ÷IP
-    int         WEB_PORT = 80;                // ¡ï¶Ë¿Ú£ºhttpÄ¬ÈÏ80£¬HTTPSÏÈ±ðÓÃ
-    std::string WEB_PATH = "/register.php";   // ¡ïPHPÎÄ¼þÂ·¾¶
+    // ======== ï¿½ï¿½ï¿½Þ¸ï¿½ï¿½ï¿½ï¿½ï¿½ ========
+    std::string WEB_HOST = "wow.chenmin.org";  // ï¿½ï¿½ï¿½Þ¸Ä³ï¿½ï¿½ï¿½Ä·ï¿½ï¿½ï¿½ï¿½ï¿½IP
+    int         WEB_PORT = 80;                // ï¿½ï¿½Ë¿Ú£ï¿½httpÄ¬ï¿½ï¿½80ï¿½ï¿½HTTPSï¿½È±ï¿½ï¿½ï¿½
+    std::string WEB_PATH = "/register.php";   // ï¿½ï¿½PHPï¿½Ä¼ï¿½Â·ï¿½ï¿½
     // ============================
 
     // POST body
@@ -66,7 +68,7 @@ bool HttpPostRegister(const std::string& username,
         "&password2=" + password2 +
         "&email=" + email;
 
-    // ×ª¿í×Ö´®
+    // ×ªï¿½ï¿½ï¿½Ö´ï¿½
     std::wstring hostW  = AnsiToWide(WEB_HOST);
     std::wstring pathW  = AnsiToWide(WEB_PATH);
 
@@ -124,11 +126,11 @@ bool HttpPostRegister(const std::string& username,
 }
 
 
-// ---------- ÐÞ¸Ä Config.wtf ÖÐµÄ portal ----------
-// ÐÞ¸Ä _classic_era_\WTF\Config.wtf£¬µÚÒ»ÐÐÐ´Èë SET portal "127.0.0.1"
+// ---------- ï¿½Þ¸ï¿½ Config.wtf ï¿½Ðµï¿½ portal ----------
+// ï¿½Þ¸ï¿½ _classic_era_\WTF\Config.wtfï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ð´ï¿½ï¿½ SET portal "127.0.0.1"
 int portal()
 {
-    // ´ò¿ªÊäÈëÎÄ¼þ
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½
     ifstream inFile("_classic_era_\\WTF\\Config.wtf");
     string line;
     vector<string> lines;
@@ -140,34 +142,34 @@ int portal()
         inFile.close();
     }
 
-    // Èç¹ûÔ­ÎÄ¼þÓÐÄÚÈÝ£¬Ôò´ÓµÚ¶þÐÐ¿ªÊ¼±£ÁôÔ­ÄÚÈÝ
+    // ï¿½ï¿½ï¿½Ô­ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½ï¿½ï¿½ÓµÚ¶ï¿½ï¿½Ð¿ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½Ô­ï¿½ï¿½ï¿½ï¿½
     int startLine = !lines.empty() ? 1 : 0;
 
-    // ÖØÐÂÐ´Êä³öÎÄ¼þ
+    // ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½
     ofstream outFile("_classic_era_\\WTF\\Config.wtf", ios::trunc);
     if (!outFile.is_open()) {
-        cout << "ÎÞ·¨´ò¿ª Config.wtf ½øÐÐÐ´Èë¡£" << endl;
+        cout << "ï¿½Þ·ï¿½ï¿½ï¿½ Config.wtf ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ë¡£" << endl;
         return 1;
     }
 
-    // Ð´ÈëÐÂÄÚÈÝ
+    // Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     outFile << "SET portal \"wow.chenmin.org\"\n";
 
-    // Ð´ÈëÔ­ÓÐÄÚÈÝ£¨´ÓµÚ¶þÐÐ¿ªÊ¼£©
+    // Ð´ï¿½ï¿½Ô­ï¿½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½ï¿½ÓµÚ¶ï¿½ï¿½Ð¿ï¿½Ê¼ï¿½ï¿½
     for (int i = startLine; i < (int)lines.size(); ++i) {
         outFile << lines[i] << '\n';
     }
 
     outFile.close();
-    cout << "ÒÑ¸üÐÂ Config.wtf ÖÐµÄ portal ÉèÖÃ¡£" << endl;
+    cout << "ï¿½Ñ¸ï¿½ï¿½ï¿½ Config.wtf ï¿½Ðµï¿½ portal ï¿½ï¿½ï¿½Ã¡ï¿½" << endl;
     return 0;
 }
 
 
-// ---------- Æô¶¯ÓÎÏ·Âß¼­£ºÁ¬ wow.chenmin.org:1119 ³É¹¦ÔòÆô¶¯ Arctium WoW Launcher ---------- 
+// ---------- ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï·ï¿½ß¼ï¿½ï¿½ï¿½ï¿½ï¿½ wow.chenmin.org:1119 ï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Arctium WoW Launcher ---------- 
 void StartGame()
 {
-    portal(); // Ð´Èë portal
+    portal(); // Ð´ï¿½ï¿½ portal
 
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2,2),&wsa)!=0) return;
@@ -184,19 +186,19 @@ void StartGame()
 
 
     if(connect(s,(sockaddr*)&addr,sizeof(addr))==SOCKET_ERROR){
-        MessageBoxA(NULL,"ÎÞ·¨Á¬½Ó ·þÎñÆ÷","Á¬½ÓÊ§°Ü",MB_OK|MB_ICONWARNING);
+        MessageBoxA(NULL,"ï¿½Þ·ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½","ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½",MB_OK|MB_ICONWARNING);
         closesocket(s);WSACleanup();return;
     }
 
     closesocket(s);WSACleanup();
 
-    // ?? CreateProcessW ? ÓÎÏ·Æô¶¯ºËÐÄ
+    // ?? CreateProcessW ? ï¿½ï¿½Ï·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     STARTUPINFOW si{sizeof(si)};
     PROCESS_INFORMATION pi{};
     WCHAR cmd[] = L"Arctium WoW Launcher.exe --staticseed --version ClassicEra";
 
     if(!CreateProcessW(NULL,cmd,NULL,NULL,FALSE,0,NULL,NULL,&si,&pi)){
-        MessageBoxA(NULL,"Æô¶¯Ê§°Ü£¬ÕÒ²»µ½ Arctium WoW Launcher.exe","´íÎó",MB_OK|MB_ICONERROR);
+        MessageBoxA(NULL,"ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½ï¿½Ò²ï¿½ï¿½ï¿½ Arctium WoW Launcher.exe","ï¿½ï¿½ï¿½ï¿½",MB_OK|MB_ICONERROR);
         return;
     }
 
@@ -205,39 +207,39 @@ void StartGame()
 }
 
 
-// ---------- ´°¿Ú¹ý³Ì ----------
+// ---------- ï¿½ï¿½ï¿½Ú¹ï¿½ï¿½ï¿½ ----------
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg) {
     case WM_CREATE:
     {
-        // ´´½¨ 4 ¸ö±à¼­¿ò + ÎÄ±¾±êÇ©
-        CreateWindowA("STATIC", "ÕËºÅ£º", WS_CHILD | WS_VISIBLE,
+        // ï¿½ï¿½ï¿½ï¿½ 4 ï¿½ï¿½ï¿½à¼­ï¿½ï¿½ + ï¿½Ä±ï¿½ï¿½ï¿½Ç©
+        CreateWindowA("STATIC", "ï¿½ËºÅ£ï¿½", WS_CHILD | WS_VISIBLE,
                       20, 20, 60, 20, hwnd, NULL, NULL, NULL);
         g_hEditUsername = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER,
                                         90, 20, 200, 20, hwnd, (HMENU)IDC_EDIT_USERNAME, NULL, NULL);
 
-        CreateWindowA("STATIC", "ÃÜÂë£º", WS_CHILD | WS_VISIBLE,
+        CreateWindowA("STATIC", "ï¿½ï¿½ï¿½ë£º", WS_CHILD | WS_VISIBLE,
                       20, 50, 60, 20, hwnd, NULL, NULL, NULL);
         g_hEditPassword = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_PASSWORD,
                                         90, 50, 200, 20, hwnd, (HMENU)IDC_EDIT_PASSWORD, NULL, NULL);
 
-        CreateWindowA("STATIC", "ÖØ¸´ÃÜÂë£º", WS_CHILD | WS_VISIBLE,
+        CreateWindowA("STATIC", "ï¿½Ø¸ï¿½ï¿½ï¿½ï¿½ë£º", WS_CHILD | WS_VISIBLE,
                       20, 80, 90, 20, hwnd, NULL, NULL, NULL);
         g_hEditPassword2 = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_PASSWORD,
                                          90, 80, 200, 20, hwnd, (HMENU)IDC_EDIT_PASSWORD2, NULL, NULL);
 
-        CreateWindowA("STATIC", "ÓÊÏä£º", WS_CHILD | WS_VISIBLE,
+        CreateWindowA("STATIC", "ï¿½ï¿½ï¿½ä£º", WS_CHILD | WS_VISIBLE,
                       20, 110, 60, 20, hwnd, NULL, NULL, NULL);
         g_hEditEmail = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER,
                                      90, 110, 200, 20, hwnd, (HMENU)IDC_EDIT_EMAIL, NULL, NULL);
 
-        // Á½¸ö°´Å¥
-        CreateWindowA("BUTTON", "×¢²áÕËºÅ",
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å¥
+        CreateWindowA("BUTTON", "×¢ï¿½ï¿½ï¿½Ëºï¿½",
                       WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                       50, 150, 100, 30, hwnd, (HMENU)IDC_BUTTON_REGISTER, NULL, NULL);
 
-        CreateWindowA("BUTTON", "Æô¶¯ÓÎÏ·",
+        CreateWindowA("BUTTON", "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï·",
                       WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                       180, 150, 100, 30, hwnd, (HMENU)IDC_BUTTON_START, NULL, NULL);
     }
@@ -247,7 +249,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         int id = LOWORD(wParam);
         if (id == IDC_BUTTON_REGISTER && HIWORD(wParam) == BN_CLICKED) {
-            // ¶ÁÈ¡ÊäÈë¿òÄÚÈÝ
+            // ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
             char bufUser[64] = { 0 };
             char bufPass[64] = { 0 };
             char bufPass2[64] = { 0 };
@@ -264,16 +266,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             std::string email = bufEmail;
 
             if (username.empty() || password.empty() || password2.empty() || email.empty()) {
-                MessageBoxA(hwnd, "ÇëÊäÈëÍêÕûÐÅÏ¢£¨ÕËºÅ¡¢Á½´ÎÃÜÂë¡¢ÓÊÏä£©", "ÌáÊ¾", MB_OK | MB_ICONINFORMATION);
+                MessageBoxA(hwnd, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½ï¿½ï¿½ËºÅ¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë¡¢ï¿½ï¿½ï¿½ä£©", "ï¿½ï¿½Ê¾", MB_OK | MB_ICONINFORMATION);
                 break;
             }
 
             std::string resp;
 			bool ok = HttpPostRegister(username, password, password2, email, resp);
 			if (!ok) {
-			    MessageBoxA(hwnd, "ÇëÇóÊ§°Ü£¬ÇëÈ·ÈÏ±¾»ú Web ·þÎñÆ÷ÒÑÆô¶¯¡£", "´íÎó", MB_OK | MB_ICONERROR);
+			    MessageBoxA(hwnd, "ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½ï¿½ï¿½È·ï¿½Ï±ï¿½ï¿½ï¿½ Web ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½", "ï¿½ï¿½ï¿½ï¿½", MB_OK | MB_ICONERROR);
 			} else {
-			    // È¥µô UTF-8 BOM£¨EF BB BF£©
+			    // È¥ï¿½ï¿½ UTF-8 BOMï¿½ï¿½EF BB BFï¿½ï¿½
 			    if (resp.size() >= 3 &&
 			        (unsigned char)resp[0] == 0xEF &&
 			        (unsigned char)resp[1] == 0xBB &&
@@ -284,7 +286,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			    bool success = false;
 			    std::string msgText;
 			
-			    // --- ·ÇÑÏ¸ñ JSON ½âÎö£ºÊÖ¶¯ÕÒ success ºÍ message ×Ö¶Î ---
+			    // --- ï¿½ï¿½ï¿½Ï¸ï¿½ JSON ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¶ï¿½ï¿½ï¿½ success ï¿½ï¿½ message ï¿½Ö¶ï¿½ ---
 			    // 1) success
 			    size_t posSucc = resp.find("\"success\"");
 			    if (posSucc != std::string::npos) {
@@ -314,7 +316,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			        }
 			    }
 			
-			    // Èç¹ûÃ»½âÎöµ½ message£¬¾ÍÍË»ØÏÔÊ¾Õû¸ö resp
+			    // ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ messageï¿½ï¿½ï¿½ï¿½ï¿½Ë»ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ resp
 			    if (msgText.empty()) {
 			        msgText = resp;
 			    }
@@ -322,9 +324,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			    std::wstring wMsg   = Utf8ToWide(msgText);
 				std::wstring wTitle;
 				if (success) {
-				    wTitle = L"\u6CE8\u518C\u6210\u529F";  // ¡°×¢²á³É¹¦¡±
+				    wTitle = L"\u6CE8\u518C\u6210\u529F";  // ï¿½ï¿½×¢ï¿½ï¿½É¹ï¿½ï¿½ï¿½
 				} else {
-				    wTitle = L"\u6CE8\u518C\u5931\u8D25";  // ¡°×¢²áÊ§°Ü¡±
+				    wTitle = L"\u6CE8\u518C\u5931\u8D25";  // ï¿½ï¿½×¢ï¿½ï¿½Ê§ï¿½Ü¡ï¿½
 				}
 
 			
@@ -360,7 +362,15 @@ int APIENTRY WinMain(HINSTANCE hInstance,
                      LPSTR     lpCmdLine,
                      int       nCmdShow)
 {
-    // ×¢²á´°¿ÚÀà
+    // ï¿½ï¿½Ê¼ï¿½ï¿½ WinSparkle ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½
+    win_sparkle_set_appcast_url("https://wow.chenmin.org/appcast.xml");
+    win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"1.0.0");
+    win_sparkle_init();
+    
+    // ï¿½ï¿½é¸»ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½Â°æ±¾
+    win_sparkle_check_update_without_ui();
+    
+    // ×¢ï¿½á´°ï¿½ï¿½ï¿½ï¿½
     WNDCLASSEXA wc = { 0 };
     wc.cbSize = sizeof(WNDCLASSEXA);
     wc.lpfnWndProc = WndProc;
@@ -370,15 +380,15 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 
     if (!RegisterClassExA(&wc)) {
-        MessageBoxA(NULL, "×¢²á´°¿ÚÀàÊ§°Ü", "´íÎó", MB_OK | MB_ICONERROR);
+        MessageBoxA(NULL, "×¢ï¿½á´°ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½", "ï¿½ï¿½ï¿½ï¿½", MB_OK | MB_ICONERROR);
         return 1;
     }
 
-    // ´´½¨´°¿Ú
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     HWND hwnd = CreateWindowExA(
         0,
         "WoWLauncherWndClass",
-        "WoW Æô¶¯Æ÷ & ×¢²á",
+        "WoW ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ & ×¢ï¿½ï¿½",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT,
         340, 250,
@@ -389,19 +399,22 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     );
 
     if (!hwnd) {
-        MessageBoxA(NULL, "´´½¨´°¿ÚÊ§°Ü", "´íÎó", MB_OK | MB_ICONERROR);
+        MessageBoxA(NULL, "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½", "ï¿½ï¿½ï¿½ï¿½", MB_OK | MB_ICONERROR);
         return 1;
     }
 
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
 
-    // ÏûÏ¢Ñ­»·
+    // ï¿½ï¿½Ï¢Ñ­ï¿½ï¿½
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+
+    // ï¿½ï¿½ï¿½ï¿½ WinSparkle
+    win_sparkle_cleanup();
 
     return (int)msg.wParam;
 }
