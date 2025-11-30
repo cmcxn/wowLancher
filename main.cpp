@@ -8,8 +8,9 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
+#include <winsparkle.h>
 #pragma comment(lib, "winhttp.lib")  // MSVC 用，MinGW 不一定生效，仍建议用 -lwinhttp
-
+#pragma comment(lib, "winsparkle.lib")
 // 控件 ID
 #define IDC_EDIT_USERNAME   1001
 #define IDC_EDIT_PASSWORD   1002
@@ -361,6 +362,15 @@ int APIENTRY WinMain(HINSTANCE hInstance,
                      int       nCmdShow)
 {
     // 注册窗口类
+    win_sparkle_set_appcast_url("https://wow.chenmin.org/appcast.xml");
+    win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"1.0.0");
+    win_sparkle_init();
+ 
+ win_sparkle_check_update_with_ui_and_install();
+		//win_sparkle_check_update_with_ui();
+//		win_sparkle_check_update_without_ui();
+    win_sparkle_check_update_without_ui();
+    
     WNDCLASSEXA wc = { 0 };
     wc.cbSize = sizeof(WNDCLASSEXA);
     wc.lpfnWndProc = WndProc;
@@ -402,6 +412,8 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+    
+     win_sparkle_cleanup();
 
     return (int)msg.wParam;
 }
