@@ -9,8 +9,10 @@
 #include <vector>
 #include <fstream>
 #include <winsparkle.h>
-#pragma comment(lib, "winhttp.lib")  // MSVC 用，MinGW 不一定生效，仍建议用 -lwinhttp
+
+#pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "winsparkle.lib")
+
 // 控件 ID
 #define IDC_EDIT_USERNAME   1001
 #define IDC_EDIT_PASSWORD   1002
@@ -20,11 +22,19 @@
 #define IDC_BUTTON_START    2002
 
 // 全局保存控件句柄
+
+HWND g_hwnd = NULL; // 全局窗口句柄，用于跨线程关闭窗口
+
 HWND g_hEditUsername = NULL;
 HWND g_hEditPassword = NULL;
 HWND g_hEditPassword2 = NULL;
 HWND g_hEditEmail = NULL;
+
+// 全局标志：是否在检查完更新后自动启动游戏
+bool g_bAutoStartGame = false;
+
 using namespace std;
+
 // ---------- 工具：窄字符串转宽字符串 ----------
 std::wstring AnsiToWide(const std::string& s)
 {
@@ -34,7 +44,6 @@ std::wstring AnsiToWide(const std::string& s)
     MultiByteToWideChar(CP_ACP, 0, s.c_str(), -1, &ws[0], len);
     return ws;
 }
-
 
 // UTF-8 字符串转宽字符串
 std::wstring Utf8ToWide(const std::string& s)
@@ -55,19 +64,17 @@ bool HttpPostRegister(const std::string& username,
     outResponse.clear();
 
     // ======== 可修改配置 ========
-    std::string WEB_HOST = "wow.chenmin.org";  // ★修改成你的服务器IP
-    int         WEB_PORT = 80;                // ★端口：http默认80，HTTPS先别用
-    std::string WEB_PATH = "/register.php";   // ★PHP文件路径
+    std::string WEB_HOST = "wow.chenmin.org";  
+    int         WEB_PORT = 80;                
+    std::string WEB_PATH = "/register.php";   
     // ============================
 
-    // POST body
     std::string data =
         "username=" + username +
         "&password=" + password +
         "&password2=" + password2 +
         "&email=" + email;
 
-    // 转宽字串
     std::wstring hostW  = AnsiToWide(WEB_HOST);
     std::wstring pathW  = AnsiToWide(WEB_PATH);
 
@@ -124,12 +131,9 @@ bool HttpPostRegister(const std::string& username,
     return true;
 }
 
-
 // ---------- 修改 Config.wtf 中的 portal ----------
-// 修改 _classic_era_\WTF\Config.wtf，第一行写入 SET portal "127.0.0.1"
 int portal()
 {
-    // 打开输入文件
     ifstream inFile("_classic_era_\\WTF\\Config.wtf");
     string line;
     vector<string> lines;
@@ -141,31 +145,25 @@ int portal()
         inFile.close();
     }
 
-    // 如果原文件有内容，则从第二行开始保留原内容
     int startLine = !lines.empty() ? 1 : 0;
 
-    // 重新写输出文件
     ofstream outFile("_classic_era_\\WTF\\Config.wtf", ios::trunc);
     if (!outFile.is_open()) {
         cout << "无法打开 Config.wtf 进行写入。" << endl;
         return 1;
     }
 
-    // 写入新内容
     outFile << "SET portal \"wow.chenmin.org\"\n";
 
-    // 写入原有内容（从第二行开始）
     for (int i = startLine; i < (int)lines.size(); ++i) {
         outFile << lines[i] << '\n';
     }
 
     outFile.close();
-    cout << "已更新 Config.wtf 中的 portal 设置。" << endl;
     return 0;
 }
 
-
-// ---------- 启动游戏逻辑：连 wow.chenmin.org:1119 成功则启动 Arctium WoW Launcher ---------- 
+// ---------- 启动游戏逻辑 ---------- 
 void StartGame()
 {
     portal(); // 写入 portal
@@ -181,8 +179,7 @@ void StartGame()
     addr.sin_port = htons(1119); 
     
     hostent* he = gethostbyname("wow.chenmin.org");
-	if(he) memcpy(&addr.sin_addr, he->h_addr_list[0], he->h_length);
-
+    if(he) memcpy(&addr.sin_addr, he->h_addr_list[0], he->h_length);
 
     if(connect(s,(sockaddr*)&addr,sizeof(addr))==SOCKET_ERROR){
         MessageBoxA(NULL,"无法连接 服务器","连接失败",MB_OK|MB_ICONWARNING);
@@ -191,7 +188,6 @@ void StartGame()
 
     closesocket(s);WSACleanup();
 
-    // ?? CreateProcessW ? 游戏启动核心
     STARTUPINFOW si{sizeof(si)};
     PROCESS_INFORMATION pi{};
     WCHAR cmd[] = L"Arctium WoW Launcher.exe --staticseed --version ClassicEra";
@@ -205,6 +201,43 @@ void StartGame()
     CloseHandle(pi.hThread);
 }
 
+// ---------- WinSparkle 回调函数 ----------
+// 1. 没有发现更新 -> 启动游戏
+void OnDidNotFindUpdate()
+{
+    if (g_bAutoStartGame) {
+        g_bAutoStartGame = false;
+        StartGame();
+    }
+}
+
+// 2. 用户取消更新或关闭更新窗口 -> 启动游戏
+void OnUpdateCancelled()
+{
+    if (g_bAutoStartGame) {
+        g_bAutoStartGame = false;
+        StartGame();
+    }
+}
+
+// 3. 发现更新 -> 不自动启动游戏，让 WinSparkle UI 处理更新重启
+void OnDidFindUpdate()
+{
+    // 发现更新了，用户会看到更新窗口
+    // 如果用户选择更新，程序会重启，游戏自然不会启动（这是对的，因为要启动新版）
+    // 如果用户点击“以后再说”或关闭窗口，会触发 OnUpdateCancelled，从而启动游戏
+}
+// 4. ★★★ 关键回调：下载完成，准备安装，请求关闭当前程序 ★★★
+void OnShutdownRequest() {
+    // WinSparkle 准备运行更新包了，我们必须立刻退出
+    // 否则更新包无法覆盖当前的 exe 文件
+    g_bAutoStartGame = false; 
+    
+    // 发送关闭消息给主窗口
+    if (g_hwnd) {
+        PostMessage(g_hwnd, WM_CLOSE, 0, 0);
+    }
+}
 
 // ---------- 窗口过程 ----------
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -212,7 +245,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     switch (msg) {
     case WM_CREATE:
     {
-        // 创建 4 个编辑框 + 文本标签
+        // 创建控件...
         CreateWindowA("STATIC", "账号：", WS_CHILD | WS_VISIBLE,
                       20, 20, 60, 20, hwnd, NULL, NULL, NULL);
         g_hEditUsername = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER,
@@ -233,7 +266,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         g_hEditEmail = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER,
                                      90, 110, 200, 20, hwnd, (HMENU)IDC_EDIT_EMAIL, NULL, NULL);
 
-        // 两个按钮
         CreateWindowA("BUTTON", "注册账号",
                       WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                       50, 150, 100, 30, hwnd, (HMENU)IDC_BUTTON_REGISTER, NULL, NULL);
@@ -248,7 +280,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         int id = LOWORD(wParam);
         if (id == IDC_BUTTON_REGISTER && HIWORD(wParam) == BN_CLICKED) {
-            // 读取输入框内容
+            // (注册逻辑保持不变)
             char bufUser[64] = { 0 };
             char bufPass[64] = { 0 };
             char bufPass2[64] = { 0 };
@@ -270,57 +302,41 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
 
             std::string resp;
-			bool ok = HttpPostRegister(username, password, password2, email, resp);
-			if (!ok) {
-			    MessageBoxA(hwnd, "请求失败，请确认本机 Web 服务器已启动。", "错误", MB_OK | MB_ICONERROR);
-			} else {
-			    // 去掉 UTF-8 BOM（EF BB BF）
-			    if (resp.size() >= 3 &&
-			        (unsigned char)resp[0] == 0xEF &&
-			        (unsigned char)resp[1] == 0xBB &&
-			        (unsigned char)resp[2] == 0xBF) {
-			        resp.erase(0, 3);
-			    }
-			
-			    bool success = false;
-			    std::string msgText;
-			
-			    // --- 非严格 JSON 解析：手动找 success 和 message 字段 ---
-			    // 1) success
-			    size_t posSucc = resp.find("\"success\"");
-			    if (posSucc != std::string::npos) {
-			        size_t posColon = resp.find(':', posSucc);
-			        if (posColon != std::string::npos) {
-			            size_t posVal = resp.find_first_not_of(" \t\r\n", posColon + 1);
-			            if (posVal != std::string::npos &&
-			                resp.compare(posVal, 4, "true") == 0) {
-			                success = true;
-			            }
-			        }
-			    }
-			
-			    // 2) message
-			    size_t posMsgKey = resp.find("\"message\"");
-			    if (posMsgKey != std::string::npos) {
-			        size_t posColon = resp.find(':', posMsgKey);
-			        if (posColon != std::string::npos) {
-			            size_t posQuote1 = resp.find('"', posColon + 1);
-			            if (posQuote1 != std::string::npos) {
-			                size_t posQuote2 = resp.find('"', posQuote1 + 1);
-			                if (posQuote2 != std::string::npos) {
-			                    msgText = resp.substr(posQuote1 + 1,
-			                                          posQuote2 - posQuote1 - 1);
-			                }
-			            }
-			        }
-			    }
-			
-			    // 如果没解析到 message，就退回显示整个 resp
-			    if (msgText.empty()) {
-			        msgText = resp;
-			    }
-			
-			    std::wstring wMsg   = Utf8ToWide(msgText);
+            bool ok = HttpPostRegister(username, password, password2, email, resp);
+            if (!ok) {
+                MessageBoxA(hwnd, "请求失败，请确认本机 Web 服务器已启动。", "错误", MB_OK | MB_ICONERROR);
+            } else {
+                // UTF-8 BOM 处理
+                if (resp.size() >= 3 &&
+                    (unsigned char)resp[0] == 0xEF &&
+                    (unsigned char)resp[1] == 0xBB &&
+                    (unsigned char)resp[2] == 0xBF) {
+                    resp.erase(0, 3);
+                }
+                bool success = false;
+                std::string msgText;
+                size_t posSucc = resp.find("\"success\"");
+                if (posSucc != std::string::npos) {
+                    size_t posColon = resp.find(':', posSucc);
+                    if (posColon != std::string::npos) {
+                        size_t posVal = resp.find_first_not_of(" \t\r\n", posColon + 1);
+                        if (posVal != std::string::npos && resp.compare(posVal, 4, "true") == 0) success = true;
+                    }
+                }
+                size_t posMsgKey = resp.find("\"message\"");
+                if (posMsgKey != std::string::npos) {
+                    size_t posColon = resp.find(':', posMsgKey);
+                    if (posColon != std::string::npos) {
+                        size_t posQuote1 = resp.find('"', posColon + 1);
+                        if (posQuote1 != std::string::npos) {
+                            size_t posQuote2 = resp.find('"', posQuote1 + 1);
+                            if (posQuote2 != std::string::npos) msgText = resp.substr(posQuote1 + 1, posQuote2 - posQuote1 - 1);
+                        }
+                    }
+                }
+                if (msgText.empty()) msgText = resp;
+
+                std::wstring wMsg = Utf8ToWide(msgText); 
 				std::wstring wTitle;
 				if (success) {
 				    wTitle = L"\u6CE8\u518C\u6210\u529F";  // “注册成功”
@@ -328,19 +344,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				    wTitle = L"\u6CE8\u518C\u5931\u8D25";  // “注册失败”
 				}
 
-			
-			    UINT uIcon = success ? MB_ICONINFORMATION : MB_ICONERROR;
-			
-			    MessageBoxW(hwnd,
-			                wMsg.c_str(),
-			                wTitle.c_str(),
-			                MB_OK | uIcon);
-			}
-
- 
+                MessageBoxW(hwnd, wMsg.c_str(), wTitle.c_str(), MB_OK | (success ? MB_ICONINFORMATION : MB_ICONERROR));
+            }
         }
         else if (id == IDC_BUTTON_START && HIWORD(wParam) == BN_CLICKED) {
-            StartGame();
+            // ★修改：点击按钮时，先检查更新
+            g_bAutoStartGame = true; // 设置标志，如果无更新则启动
+            win_sparkle_check_update_with_ui(); // 检查更新（异步）
         }
     }
     break;
@@ -361,16 +371,20 @@ int APIENTRY WinMain(HINSTANCE hInstance,
                      LPSTR     lpCmdLine,
                      int       nCmdShow)
 {
-    // 注册窗口类
-    win_sparkle_set_appcast_url("https://wow.chenmin.org/appcast.xml");
-    win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"1.0.0");
-    win_sparkle_init();
- 
- win_sparkle_check_update_with_ui_and_install();
-		//win_sparkle_check_update_with_ui();
-//		win_sparkle_check_update_without_ui();
-    win_sparkle_check_update_without_ui();
+    // 初始化 WinSparkle
+    win_sparkle_set_appcast_url("http://wow.chenmin.org/appcast.xml");
+    win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"1.0.0"); // 当前版本号
     
+    // 注册回调函数
+    win_sparkle_set_did_not_find_update_callback(OnDidNotFindUpdate);
+    win_sparkle_set_update_cancelled_callback(OnUpdateCancelled);
+    win_sparkle_set_did_find_update_callback(OnDidFindUpdate);
+ // ★ 注册关闭回调：这一步至关重要
+    win_sparkle_set_shutdown_request_callback(OnShutdownRequest);
+    win_sparkle_init();
+    
+    // 注意：移除了启动时自动检查 update 的代码，避免干扰按钮逻辑
+
     WNDCLASSEXA wc = { 0 };
     wc.cbSize = sizeof(WNDCLASSEXA);
     wc.lpfnWndProc = WndProc;
@@ -384,37 +398,22 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         return 1;
     }
 
-    // 创建窗口
-    HWND hwnd = CreateWindowExA(
-        0,
-        "WoWLauncherWndClass",
-        "WoW 启动器 & 注册",
+    g_hwnd = CreateWindowExA(0, "WoWLauncherWndClass", "WoW 启动器 & 注册",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        340, 250,
-        NULL,
-        NULL,
-        hInstance,
-        NULL
-    );
+        CW_USEDEFAULT, CW_USEDEFAULT, 340, 250, NULL, NULL, hInstance, NULL);
 
-    if (!hwnd) {
-        MessageBoxA(NULL, "创建窗口失败", "错误", MB_OK | MB_ICONERROR);
-        return 1;
-    }
+    if (!g_hwnd) return 1;
 
-    ShowWindow(hwnd, nCmdShow);
-    UpdateWindow(hwnd);
+    ShowWindow(g_hwnd, nCmdShow);
+    UpdateWindow(g_hwnd);
 
-    // 消息循环
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
     
-     win_sparkle_cleanup();
+    win_sparkle_cleanup();
 
     return (int)msg.wParam;
 }
-
