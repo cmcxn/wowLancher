@@ -3,12 +3,12 @@
   <channel>
     <title>WoW Launcher Updates</title>
     <item>
-      <title>Version 1.0.0</title>
+      <title>Version 1.0.1</title>
       <description>New update with bug fixes.</description>
       <pubDate>Sun, 01 Dec 2025 12:00:00 +0000</pubDate>
-      <sparkle:version>1.0.0</sparkle:version>
-      <enclosure url="http://wow.chenmin.org/WoWLauncher_Setup_v1.0.0.exe"
-                 sparkle:version="1.0.0"
+      <sparkle:version>1.0.1</sparkle:version>
+      <enclosure url="http://wow.chenmin.org/WoWLauncher_Setup_v1.0.1.exe"
+                 sparkle:version="1.0.1"
                  type="application/octet-stream" />
     </item>
   </channel>
