@@ -350,7 +350,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         else if (id == IDC_BUTTON_START && HIWORD(wParam) == BN_CLICKED) {
             // ★修改：点击按钮时，先检查更新
             g_bAutoStartGame = true; // 设置标志，如果无更新则启动
-            win_sparkle_check_update_with_ui(); // 检查更新（异步）
+           // ★ Change: Use WITHOUT_UI to hide the "Up to date" popup
+            // If an update IS found, the UI will still appear automatically.
+            // If NO update is found, it silently calls OnDidNotFindUpdate, which starts the game.
+            win_sparkle_check_update_without_ui(); 
         }
     }
     break;
@@ -373,7 +376,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 {
     // 初始化 WinSparkle
     win_sparkle_set_appcast_url("http://wow.chenmin.org/appcast.xml");
-    win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"1.0.1"); // 当前版本号
+    win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"1.0.2"); // 当前版本号
     
     // 注册回调函数
     win_sparkle_set_did_not_find_update_callback(OnDidNotFindUpdate);
@@ -398,7 +401,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         return 1;
     }
 
-    g_hwnd = CreateWindowExA(0, "WoWLauncherWndClass", "WoW 启动器 & 注册 1.0.1",
+    g_hwnd = CreateWindowExA(0, "WoWLauncherWndClass", "WoW 启动器 & 注册 1.0.2",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 340, 250, NULL, NULL, hInstance, NULL);
 
