@@ -1,7 +1,7 @@
 ; ½Å±¾¿ªÊ¼
 
-#define MyAppName "WoW Launcher"
-#define MyAppVersion "1.0.1" 
+#define MyAppName "Ä§ÊŞÊÀ½çÆô¶¯Æ÷"
+#define MyAppVersion "1.0.0" 
 #define MyAppPublisher "ChenMin WoW"
 #define MyAppURL "http://wow.chenmin.org/"
 #define MyAppExeName "WowLauncher.exe"
@@ -29,7 +29,7 @@ RestartApplications=no
 Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "´´½¨×ÀÃæ¿ì½İ·½Ê½"; GroupDescription: "¸½¼ÓÍ¼±ê"; Flags: unchecked
+Name: "desktopicon"; Description: "´´½¨×ÀÃæ¿ì½İ·½Ê½"; GroupDescription: "¸½¼ÓÍ¼±ê"; Flags: checkablealone
 
 [Files]
 Source: "WowLauncher.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -45,7 +45,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "ÔËĞĞ {#MyAppName}"; Flags: nowa
 
 [Messages]
 SelectDirLabel3=ÇëÑ¡ÔñÄúµÄÄ§ÊŞÊÀ½ç£¨World of Warcraft£©°²×°Ä¿Â¼¡£
-SelectDirBrowseLabel=°²×°³ÌĞò»á×Ô¶¯³¢ÊÔ¼ì²âÄúµÄÓÎÏ·Â·¾¶¡£Èç¹ûÃ»ÓĞ¼ì²âµ½£¬ÇëÊÖ¶¯µã»÷¡°ä¯ÀÀ¡±²¢¶¨Î»µ½°üº¬ "World of Warcraft Launcher.exe" µÄÎÄ¼ş¼Ğ¡£
+SelectDirBrowseLabel=ÇëÈ·ÈÏÏÂ·½Â·¾¶ÊÇ·ñÎªÄúµÄÓÎÏ·¸ùÄ¿Â¼¡£Èç¹ûÎª¿Õ»ò²»ÕıÈ·£¬Çëµã»÷¡°ä¯ÀÀ¡±²¢¶¨Î»µ½°üº¬ "World of Warcraft Launcher.exe" µÄÎÄ¼ş¼Ğ¡£
 
 ; =====================================================================
 ; ¡ï ºËĞÄ´úÂëÇøÓò
@@ -54,8 +54,12 @@ SelectDirBrowseLabel=°²×°³ÌĞò»á×Ô¶¯³¢ÊÔ¼ì²âÄúµÄÓÎÏ·Â·¾¶¡£Èç¹ûÃ»ÓĞ¼ì²âµ½£¬ÇëÊÖ¶¯µ
 
 const
   TargetFileName = 'World of Warcraft Launcher.exe';
-  // ÊÖ¶¯¶¨ÒåÎÄ¼ş¼ĞÊôĞÔ³£Á¿
   faDirectory = $10;
+
+var
+  // ¡ï¡ï¡ï ĞŞ¸´µã£ºÀàĞÍ¸ÄÎª TInputOptionWizardPage ¡ï¡ï¡ï
+  PageSearchOption: TInputOptionWizardPage;
+  HasSearched: Boolean;
 
 // --- ¸¨Öúº¯Êı£º¼ì²éÄ³Ä¿Â¼ÏÂÊÇ·ñÓĞÄ¿±êÎÄ¼ş ---
 function FindFileInDir(Dir: String): Boolean;
@@ -79,18 +83,13 @@ begin
 
   if CurrentDepth >= MaxDepth then Exit;
 
-  // ¡ï¡ï¡ï ĞŞ¸´µã£ºÕâÀïÖ»´« 2 ¸ö²ÎÊı ¡ï¡ï¡ï
-  // ÎÒÃÇ²éÕÒËùÓĞÄÚÈİ('*')£¬È»ºóÔÚÏÂÃæÓÃ if ÅĞ¶ÏËüÊÇ²»ÊÇÎÄ¼ş¼Ğ
   if FindFirst(AddBackslash(StartDir) + '*', FindRec) then begin
     try
       repeat
-        // ÅĞ¶ÏÊÇ·ñÎªÎÄ¼ş¼Ğ ((FindRec.Attributes and faDirectory) <> 0)
         if (FindRec.Name <> '.') and (FindRec.Name <> '..') and ((FindRec.Attributes and faDirectory) <> 0) then begin
-          
           SubDir := AddBackslash(StartDir) + FindRec.Name;
           DirNameLower := Lowercase(FindRec.Name);
           
-          // ÅÅ³ıÂß¼­£º²»½øÈëÏµÍ³Ãô¸ĞÄ¿Â¼£¬Ìá¸ßËÙ¶È
           if (Pos('windows', DirNameLower) = 0) and 
              (Pos('users', DirNameLower) = 0) and 
              (Pos('programdata', DirNameLower) = 0) and
@@ -116,57 +115,87 @@ var
   RegPath: String;
 begin
   Result := '';
-
-  // 1. ×¢²á±í
-  if RegQueryStringValue(HKLM64, 'SOFTWARE\Blizzard Entertainment\World of Warcraft', 'InstallPath', RegPath) then begin
-    if FindFileInDir(RegPath) then begin
-      Result := RemoveBackslash(RegPath);
-      Exit;
+  
+  try
+    WizardForm.Enabled := False;
+    
+    // 1. ×¢²á±í
+    if RegQueryStringValue(HKLM64, 'SOFTWARE\Blizzard Entertainment\World of Warcraft', 'InstallPath', RegPath) then begin
+      if FindFileInDir(RegPath) then begin
+        Result := RemoveBackslash(RegPath);
+        Exit;
+      end;
     end;
-  end;
-  if RegQueryStringValue(HKLM32, 'SOFTWARE\Blizzard Entertainment\World of Warcraft', 'InstallPath', RegPath) then begin
-    if FindFileInDir(RegPath) then begin
-      Result := RemoveBackslash(RegPath);
-      Exit;
+    if RegQueryStringValue(HKLM32, 'SOFTWARE\Blizzard Entertainment\World of Warcraft', 'InstallPath', RegPath) then begin
+      if FindFileInDir(RegPath) then begin
+        Result := RemoveBackslash(RegPath);
+        Exit;
+      end;
     end;
-  end;
 
-  // 2. È«ÅÌÉ¨Ãè
-  Drives := ['C:', 'D:', 'E:', 'F:', 'G:', 'H:'];
+    // 2. È«ÅÌÉ¨Ãè
+    Drives := ['C:', 'D:', 'E:', 'F:', 'G:', 'H:'];
 
-  for i := 0 to GetArrayLength(Drives) - 1 do begin
-    if DirExists(Drives[i]) then begin
-      Result := RecursiveSearch(Drives[i], 0, 4); // ËÑË÷Éî¶È4²ã
-      if Result <> '' then Exit;
+    for i := 0 to GetArrayLength(Drives) - 1 do begin
+      if DirExists(Drives[i]) then begin
+        Result := RecursiveSearch(Drives[i], 0, 4);
+        if Result <> '' then Exit;
+      end;
     end;
+  finally
+    WizardForm.Enabled := True;
   end;
 end;
 
-// --- ÏµÍ³»Øµ÷ ---
+// --- ÏµÍ³»Øµ÷£º³õÊ¼»¯Ïòµ¼ ---
 procedure InitializeWizard;
-var
-  DetectedPath: String;
 begin
-  DetectedPath := AutoFindWoWPath();
-  if DetectedPath <> '' then begin
-    WizardForm.DirEdit.Text := DetectedPath;
-  end;
+  HasSearched := False;
+
+  // ´´½¨×Ô¶¨ÒåÒ³Ãæ
+  PageSearchOption := CreateInputOptionPage(wpWelcome,
+    '²éÕÒÓÎÏ·°²×°Î»ÖÃ', 'ÄúÏ£ÍûÈçºÎÉèÖÃÓÎÏ·°²×°Ä¿Â¼£¿',
+    'ÎªÁËÕıÈ·°²×°Æô¶¯Æ÷£¬ÎÒÃÇĞèÒªÖªµÀ¡¶Ä§ÊŞÊÀ½ç¡·µÄ°²×°Î»ÖÃ¡£',
+    True, False);
+
+  PageSearchOption.Add('×Ô¶¯ËÑË÷ÓÎÏ·Ä¿Â¼ (ÍÆ¼ö)');
+  PageSearchOption.Add('ÊÖ¶¯Ñ¡ÔñÓÎÏ·Ä¿Â¼');
+  PageSearchOption.SelectedValueIndex := 0;
 end;
 
+// --- ÏµÍ³»Øµ÷£ºÒ³ÃæÌø×ª ---
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   UserSelectDir: String;
   TargetFile: String;
+  DetectedPath: String;
 begin
   Result := True;
 
+  // 1. ×Ô¶¨ÒåÒ³ÃæÂß¼­
+  if CurPageID = PageSearchOption.ID then begin
+    if (PageSearchOption.SelectedValueIndex = 0) and (not HasSearched) then begin
+      
+      DetectedPath := AutoFindWoWPath();
+      
+      if DetectedPath <> '' then begin
+        WizardForm.DirEdit.Text := DetectedPath;
+        HasSearched := True;
+      end else begin
+        MsgBox('Î´ÄÜÔÚ³£¼ûÎ»ÖÃ×Ô¶¯¼ì²âµ½Ä§ÊŞÊÀ½ç¿Í»§¶Ë¡£' + #13#10 + 
+               'ÇëÔÚ½ÓÏÂÀ´µÄÒ³ÃæÖĞÊÖ¶¯Ñ¡Ôñ°²×°Ä¿Â¼¡£', mbInformation, MB_OK);
+      end;
+    end;
+  end;
+
+  // 2. Ä¿Â¼Ñ¡ÔñÒ³ÃæÂß¼­ (Ç¿ÖÆÑéÖ¤)
   if CurPageID = wpSelectDir then begin
     UserSelectDir := WizardDirValue;
     TargetFile := AddBackslash(UserSelectDir) + TargetFileName;
     
     if not FileExists(TargetFile) then begin
       MsgBox('´íÎó£ºÔÚÄ¿Â¼ "' + UserSelectDir + '" ÖĞÎ´ÕÒµ½ "' + TargetFileName + '"£¡' + #13#10 + #13#10 +
-             'ÇëÊÖ¶¯µã»÷¡°ä¯ÀÀ¡±£¬ÕÒµ½°üº¬¸ÃÎÄ¼şµÄÕıÈ·ÓÎÏ·Ä¿Â¼¡£', mbError, MB_OK);
+             'Çëµã»÷¡°ä¯ÀÀ¡±£¬ÕÒµ½°üº¬¸ÃÎÄ¼şµÄÕıÈ·ÓÎÏ·Ä¿Â¼¡£', mbError, MB_OK);
       Result := False;
     end;
   end;

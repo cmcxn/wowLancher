@@ -398,7 +398,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         return 1;
     }
 
-    g_hwnd = CreateWindowExA(0, "WoWLauncherWndClass", "WoW Æô¶¯Æ÷ & ×¢²á",
+    g_hwnd = CreateWindowExA(0, "WoWLauncherWndClass", "WoW Æô¶¯Æ÷ & ×¢²á 1.0.0",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 340, 250, NULL, NULL, hInstance, NULL);
 
