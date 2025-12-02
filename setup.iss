@@ -1,7 +1,7 @@
 ; 脚本开始
 
 #define MyAppName "魔兽世界启动器"
-#define MyAppVersion "1.0.2" 
+#define MyAppVersion "1.0.3" 
 #define MyAppPublisher "ChenMin WoW"
 #define MyAppURL "http://wow.chenmin.org/"
 #define MyAppExeName "WowLauncher.exe"

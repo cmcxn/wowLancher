@@ -14,7 +14,7 @@
 #pragma comment(lib, "winsparkle.lib")
 
 // 版本号定义
-#define APP_VERSION "1.0.2"
+#define APP_VERSION "1.0.3"
 
 // 控件 ID
 #define IDC_EDIT_USERNAME   1001
