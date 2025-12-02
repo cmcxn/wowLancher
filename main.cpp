@@ -13,6 +13,9 @@
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "winsparkle.lib")
 
+// 版本号定义
+#define APP_VERSION "1.0.2"
+
 // 控件 ID
 #define IDC_EDIT_USERNAME   1001
 #define IDC_EDIT_PASSWORD   1002
@@ -376,7 +379,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 {
     // 初始化 WinSparkle
     win_sparkle_set_appcast_url("http://wow.chenmin.org/appcast.xml");
-    win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"1.0.2"); // 当前版本号
+win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"" APP_VERSION); // 字符串字面量拼接
     
     // 注册回调函数
     win_sparkle_set_did_not_find_update_callback(OnDidNotFindUpdate);
@@ -401,7 +404,8 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         return 1;
     }
 
-    g_hwnd = CreateWindowExA(0, "WoWLauncherWndClass", "WoW 启动器 & 注册 1.0.2",
+  std::string windowTitle = "WoW 启动器 & 注册 " + std::string(APP_VERSION);
+    g_hwnd = CreateWindowExA(0, "WoWLauncherWndClass", windowTitle.c_str(),
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 340, 250, NULL, NULL, hInstance, NULL);
 
