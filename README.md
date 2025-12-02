@@ -30,6 +30,12 @@
    ```bash
    mingw32-make -f Makefile.win
    ```
+![alt text](image.png)
+
+-mwindows -lws2_32 -lshell32 -lwinhttp -lwinsparkle
+
+
+![alt text](image-1.png)
 
 ## 使用说明
 
