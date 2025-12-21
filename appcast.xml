@@ -3,16 +3,16 @@
   <channel>
     <title>WoW Launcher Updates</title>
     <item>
-      <title>Version 1.0.3</title>
+      <title>Version 1.0.4</title>
       <description>Critical update. You must update to play.</description>
-      <pubDate>周二, 02 12月 2025 13:12:28 +0000</pubDate>
+      <pubDate>周日, 21 12月 2025 13:02:01 +0000</pubDate>
       
       <!-- ★★★ Add this tag to force the update ★★★ -->
-      <sparkle:criticalUpdate version="1.0.3" />
+      <sparkle:criticalUpdate version="1.0.4" />
       
-      <sparkle:version>1.0.3</sparkle:version>
-      <enclosure url="http://wow.chenmin.org/WoWLauncher_Setup_v1.0.3.exe"
-                 sparkle:version="1.0.3"
+      <sparkle:version>1.0.4</sparkle:version>
+      <enclosure url="http://wow.chenmin.org/WoWLauncher_Setup_v1.0.4.exe"
+                 sparkle:version="1.0.4"
                  type="application/octet-stream" />
     </item>
   </channel>

@@ -8,13 +8,14 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
+#include <cstdint>
 #include <winsparkle.h>
 
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "winsparkle.lib")
 
 // 版本号定义
-#define APP_VERSION "1.0.3"
+#define APP_VERSION "1.0.4"
 
 // 控件 ID
 #define IDC_EDIT_USERNAME   1001
@@ -23,6 +24,7 @@
 #define IDC_EDIT_EMAIL      1004
 #define IDC_BUTTON_REGISTER 2001
 #define IDC_BUTTON_START    2002
+#define IDC_BUTTON_START_LOCAL 2003
 
 // 全局保存控件句柄
 
@@ -135,7 +137,7 @@ bool HttpPostRegister(const std::string& username,
 }
 
 // ---------- 修改 Config.wtf 中的 portal ----------
-int portal()
+int WritePortalHost(const std::string& host)
 {
     ifstream inFile("_classic_era_\\WTF\\Config.wtf");
     string line;
@@ -156,7 +158,7 @@ int portal()
         return 1;
     }
 
-    outFile << "SET portal \"wow.chenmin.org\"\n";
+    outFile << "SET portal \"" << host << "\"\n";
 
     for (int i = startLine; i < (int)lines.size(); ++i) {
         outFile << lines[i] << '\n';
@@ -166,43 +168,203 @@ int portal()
     return 0;
 }
 
-// ---------- 启动游戏逻辑 ---------- 
-void StartGame()
+bool UpdateHermesProxyConfig(const std::string& newValue)
 {
-    portal(); // 写入 portal
+    const std::string configPath = "HermesProxy\\HermesProxy.config";
+    vector<string> lines;
+    ifstream inFile(configPath);
 
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2,2),&wsa)!=0) return;
-
-    SOCKET s = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-    if(s==INVALID_SOCKET){WSACleanup();return;}
-
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(1119); 
-    
-    hostent* he = gethostbyname("wow.chenmin.org");
-    if(he) memcpy(&addr.sin_addr, he->h_addr_list[0], he->h_length);
-
-    if(connect(s,(sockaddr*)&addr,sizeof(addr))==SOCKET_ERROR){
-        MessageBoxA(NULL,"无法连接 服务器","连接失败",MB_OK|MB_ICONWARNING);
-        closesocket(s);WSACleanup();return;
+    if (inFile.is_open()) {
+        string line;
+        while (getline(inFile, line)) {
+            lines.push_back(line);
+        }
+        inFile.close();
+    } else {
+        lines.push_back("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+        lines.push_back("<configuration>");
+        lines.push_back("  <appSettings>");
+        lines.push_back("  </appSettings>");
+        lines.push_back("</configuration>");
     }
 
-    closesocket(s);WSACleanup();
+    bool replaced = false;
+    bool inserted = false;
+    vector<string> newLines;
 
-    STARTUPINFOW si{sizeof(si)};
+    for (const auto& current : lines) {
+        string line = current;
+        if (line.find("key=\"ServerAddress\"") != string::npos) {
+            size_t valuePos = line.find("value=\"");
+            if (valuePos != string::npos) {
+                size_t endQuote = line.find('"', valuePos + 7);
+                if (endQuote != string::npos) {
+                    line = line.substr(0, valuePos + 7) + newValue + line.substr(endQuote);
+                    replaced = true;
+                }
+            }
+        }
+
+        if (!replaced && line.find("</appSettings>") != string::npos) {
+            newLines.push_back("    <add key=\"ServerAddress\" value=\"" + newValue + "\" />");
+            inserted = true;
+        }
+
+        newLines.push_back(line);
+    }
+
+    if (!replaced && !inserted) {
+        newLines.push_back("    <add key=\"ServerAddress\" value=\"" + newValue + "\" />");
+    }
+
+    ofstream outFile(configPath, ios::trunc);
+    if (!outFile.is_open()) {
+        return false;
+    }
+
+    for (const auto& l : newLines) {
+        outFile << l << "\n";
+    }
+
+    return true;
+}
+
+bool LaunchWowClient()
+{
+    STARTUPINFOW si{ sizeof(si) };
     PROCESS_INFORMATION pi{};
     WCHAR cmd[] = L"Arctium WoW Launcher.exe --staticseed --version ClassicEra";
 
-    if(!CreateProcessW(NULL,cmd,NULL,NULL,FALSE,0,NULL,NULL,&si,&pi)){
-        MessageBoxA(NULL,"启动失败，找不到 Arctium WoW Launcher.exe","错误",MB_OK|MB_ICONERROR);
-        return;
+    if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        return false;
     }
 
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
+    return true;
 }
+
+bool ConnectToServer(const std::string& host, uint16_t port)
+{
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return false;
+
+    SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s == INVALID_SOCKET) { WSACleanup(); return false; }
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+
+    hostent* he = gethostbyname(host.c_str());
+    if (he) memcpy(&addr.sin_addr, he->h_addr_list[0], he->h_length);
+    else addr.sin_addr.s_addr = inet_addr(host.c_str());
+
+    bool connected = (connect(s, (sockaddr*)&addr, sizeof(addr)) != SOCKET_ERROR);
+
+    closesocket(s);
+    WSACleanup();
+    return connected;
+}
+
+bool StartHermesProxy()
+{
+    STARTUPINFOW si{ sizeof(si) };
+    PROCESS_INFORMATION pi{};
+    std::wstring exePath = AnsiToWide("HermesProxy\\HermesProxy.exe");
+
+    if (!CreateProcessW(exePath.c_str(), NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        return false;
+    }
+
+    WaitForInputIdle(pi.hProcess, 5000);
+
+    DWORD exitCode = 0;
+    bool running = GetExitCodeProcess(pi.hProcess, &exitCode) && exitCode == STILL_ACTIVE;
+
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    return running;
+}
+
+// ---------- 启动游戏逻辑 ---------- 
+void StartGame()
+{
+    const std::string host = "wow.chenmin.org";
+
+    if (WritePortalHost(host) != 0) {
+        MessageBoxA(NULL, "无法向 Config.wtf 写入门户。", "", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    if (!ConnectToServer(host, 1119)) {
+        MessageBoxA(NULL, "无法连接到服务器", "连接失败", MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    if (!LaunchWowClient()) {
+        MessageBoxA(NULL, "启动失败，找不到 Arctium WoW Launcher.exe", "错误", MB_OK | MB_ICONERROR);
+        return;
+    }
+}
+
+void StartLocalProxyGame()
+{
+    const std::string host = "127.0.0.1";
+    const std::string proxyKey = "yLTGiCGZnWCb4FeFtw7p8Q==";
+
+    // 1. 写入 Config.wtf
+    if (WritePortalHost(host) != 0) {
+        MessageBoxA(NULL, "无法向 Config.wtf 写入门户。", "", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    // 2. 修改代理配置
+    if (!UpdateHermesProxyConfig(proxyKey)) {
+        MessageBoxA(NULL, "无法修改 HermesProxy.config", "", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    // 3. 尝试连接（检查是否已经在运行）
+    bool connected = ConnectToServer(host, 1119);
+    
+    if (!connected) {
+        // 如果未连接，启动代理程序
+        if (!StartHermesProxy()) {
+            MessageBoxA(NULL, "HermesProxy 启动失败", "", MB_OK | MB_ICONERROR);
+            return;
+        }
+
+        // 4. ★★★ 循环重试逻辑 ★★★
+        // 最多等待 120 秒。设置为每 2 秒检测一次，共 60 次。
+        int maxRetries = 60; 
+
+        for (int i = 0; i < maxRetries; ++i) {
+            // 等待 2 秒
+            Sleep(2000);
+
+            // 再次尝试连接
+            if (ConnectToServer(host, 1119)) {
+                connected = true;
+                break; // 连接成功，立即跳出循环，不必等满 120秒
+            }
+        }
+    }
+
+    // 5. 最终检查
+    if (!connected) {
+        MessageBoxA(NULL, "启动超时：无法连接到 HermesProxy (已等待120秒)\n请检查防火墙或杀毒软件是否拦截。", "错误", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    // 6. 启动游戏客户端
+    if (!LaunchWowClient()) {
+        MessageBoxA(NULL, "启动失败，找不到 Arctium WoW Launcher.exe", "", MB_OK | MB_ICONERROR);
+        return;
+    }
+}
+
 
 // ---------- WinSparkle 回调函数 ----------
 // 1. 没有发现更新 -> 启动游戏
@@ -276,6 +438,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         CreateWindowA("BUTTON", "启动游戏",
                       WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                       180, 150, 100, 30, hwnd, (HMENU)IDC_BUTTON_START, NULL, NULL);
+
+        CreateWindowA("BUTTON", "启动本地代理游戏",
+                      WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                      180, 190, 120, 30, hwnd, (HMENU)IDC_BUTTON_START_LOCAL, NULL, NULL);
     }
     break;
 
@@ -356,7 +522,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
            // ★ Change: Use WITHOUT_UI to hide the "Up to date" popup
             // If an update IS found, the UI will still appear automatically.
             // If NO update is found, it silently calls OnDidNotFindUpdate, which starts the game.
-            win_sparkle_check_update_without_ui(); 
+            win_sparkle_check_update_without_ui();
+        }
+        else if (id == IDC_BUTTON_START_LOCAL && HIWORD(wParam) == BN_CLICKED) {
+            StartLocalProxyGame();
         }
     }
     break;
@@ -407,7 +576,7 @@ win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"" APP_VE
   std::string windowTitle = "WoW 启动器 & 注册 " + std::string(APP_VERSION);
     g_hwnd = CreateWindowExA(0, "WoWLauncherWndClass", windowTitle.c_str(),
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 340, 250, NULL, NULL, hInstance, NULL);
+        CW_USEDEFAULT, CW_USEDEFAULT, 360, 280, NULL, NULL, hInstance, NULL);
 
     if (!g_hwnd) return 1;
 
