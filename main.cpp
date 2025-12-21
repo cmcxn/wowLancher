@@ -8,37 +8,39 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
+#include <cstdint>
 #include <winsparkle.h>
 
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "winsparkle.lib")
 
-// °æ±¾ºÅ¶¨Òå
+// ç‰ˆæœ¬å·å®šä¹‰
 #define APP_VERSION "1.0.3"
 
-// ¿Ø¼ş ID
+// æ§ä»¶ ID
 #define IDC_EDIT_USERNAME   1001
 #define IDC_EDIT_PASSWORD   1002
 #define IDC_EDIT_PASSWORD2  1003
 #define IDC_EDIT_EMAIL      1004
 #define IDC_BUTTON_REGISTER 2001
 #define IDC_BUTTON_START    2002
+#define IDC_BUTTON_START_LOCAL 2003
 
-// È«¾Ö±£´æ¿Ø¼ş¾ä±ú
+// å…¨å±€ä¿å­˜æ§ä»¶å¥æŸ„
 
-HWND g_hwnd = NULL; // È«¾Ö´°¿Ú¾ä±ú£¬ÓÃÓÚ¿çÏß³Ì¹Ø±Õ´°¿Ú
+HWND g_hwnd = NULL; // å…¨å±€çª—å£å¥æŸ„ï¼Œç”¨äºè·¨çº¿ç¨‹å…³é—­çª—å£
 
 HWND g_hEditUsername = NULL;
 HWND g_hEditPassword = NULL;
 HWND g_hEditPassword2 = NULL;
 HWND g_hEditEmail = NULL;
 
-// È«¾Ö±êÖ¾£ºÊÇ·ñÔÚ¼ì²éÍê¸üĞÂºó×Ô¶¯Æô¶¯ÓÎÏ·
+// å…¨å±€æ ‡å¿—ï¼šæ˜¯å¦åœ¨æ£€æŸ¥å®Œæ›´æ–°åè‡ªåŠ¨å¯åŠ¨æ¸¸æˆ
 bool g_bAutoStartGame = false;
 
 using namespace std;
 
-// ---------- ¹¤¾ß£ºÕ­×Ö·û´®×ª¿í×Ö·û´® ----------
+// ---------- å·¥å…·ï¼šçª„å­—ç¬¦ä¸²è½¬å®½å­—ç¬¦ä¸² ----------
 std::wstring AnsiToWide(const std::string& s)
 {
     int len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), -1, NULL, 0);
@@ -48,7 +50,7 @@ std::wstring AnsiToWide(const std::string& s)
     return ws;
 }
 
-// UTF-8 ×Ö·û´®×ª¿í×Ö·û´®
+// UTF-8 å­—ç¬¦ä¸²è½¬å®½å­—ç¬¦ä¸²
 std::wstring Utf8ToWide(const std::string& s)
 {
     int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, NULL, 0);
@@ -66,7 +68,7 @@ bool HttpPostRegister(const std::string& username,
 {
     outResponse.clear();
 
-    // ======== ¿ÉĞŞ¸ÄÅäÖÃ ========
+    // ======== å¯ä¿®æ”¹é…ç½® ========
     std::string WEB_HOST = "wow.chenmin.org";  
     int         WEB_PORT = 80;                
     std::string WEB_PATH = "/register.php";   
@@ -134,8 +136,8 @@ bool HttpPostRegister(const std::string& username,
     return true;
 }
 
-// ---------- ĞŞ¸Ä Config.wtf ÖĞµÄ portal ----------
-int portal()
+// ---------- ä¿®æ”¹ Config.wtf ä¸­çš„ portal ----------
+int WritePortalHost(const std::string& host)
 {
     ifstream inFile("_classic_era_\\WTF\\Config.wtf");
     string line;
@@ -152,11 +154,11 @@ int portal()
 
     ofstream outFile("_classic_era_\\WTF\\Config.wtf", ios::trunc);
     if (!outFile.is_open()) {
-        cout << "ÎŞ·¨´ò¿ª Config.wtf ½øĞĞĞ´Èë¡£" << endl;
+        cout << "æ— æ³•æ‰“å¼€ Config.wtf è¿›è¡Œå†™å…¥ã€‚" << endl;
         return 1;
     }
 
-    outFile << "SET portal \"wow.chenmin.org\"\n";
+    outFile << "SET portal \"" << host << "\"\n";
 
     for (int i = startLine; i < (int)lines.size(); ++i) {
         outFile << lines[i] << '\n';
@@ -166,46 +168,185 @@ int portal()
     return 0;
 }
 
-// ---------- Æô¶¯ÓÎÏ·Âß¼­ ---------- 
-void StartGame()
+bool UpdateHermesProxyConfig(const std::string& newValue)
 {
-    portal(); // Ğ´Èë portal
+    const std::string configPath = "HermesProxy\\HermesProxy.config";
+    vector<string> lines;
+    ifstream inFile(configPath);
 
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2,2),&wsa)!=0) return;
-
-    SOCKET s = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-    if(s==INVALID_SOCKET){WSACleanup();return;}
-
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(1119); 
-    
-    hostent* he = gethostbyname("wow.chenmin.org");
-    if(he) memcpy(&addr.sin_addr, he->h_addr_list[0], he->h_length);
-
-    if(connect(s,(sockaddr*)&addr,sizeof(addr))==SOCKET_ERROR){
-        MessageBoxA(NULL,"ÎŞ·¨Á¬½Ó ·şÎñÆ÷","Á¬½ÓÊ§°Ü",MB_OK|MB_ICONWARNING);
-        closesocket(s);WSACleanup();return;
+    if (inFile.is_open()) {
+        string line;
+        while (getline(inFile, line)) {
+            lines.push_back(line);
+        }
+        inFile.close();
+    } else {
+        lines.push_back("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+        lines.push_back("<configuration>");
+        lines.push_back("  <appSettings>");
+        lines.push_back("  </appSettings>");
+        lines.push_back("</configuration>");
     }
 
-    closesocket(s);WSACleanup();
+    bool replaced = false;
+    bool inserted = false;
+    vector<string> newLines;
 
-    STARTUPINFOW si{sizeof(si)};
+    for (const auto& current : lines) {
+        string line = current;
+        if (line.find("key=\"ServerAddress\"") != string::npos) {
+            size_t valuePos = line.find("value=\"");
+            if (valuePos != string::npos) {
+                size_t endQuote = line.find('"', valuePos + 7);
+                if (endQuote != string::npos) {
+                    line = line.substr(0, valuePos + 7) + newValue + line.substr(endQuote);
+                    replaced = true;
+                }
+            }
+        }
+
+        if (!replaced && line.find("</appSettings>") != string::npos) {
+            newLines.push_back("    <add key=\"ServerAddress\" value=\"" + newValue + "\" />");
+            inserted = true;
+        }
+
+        newLines.push_back(line);
+    }
+
+    if (!replaced && !inserted) {
+        newLines.push_back("    <add key=\"ServerAddress\" value=\"" + newValue + "\" />");
+    }
+
+    ofstream outFile(configPath, ios::trunc);
+    if (!outFile.is_open()) {
+        return false;
+    }
+
+    for (const auto& l : newLines) {
+        outFile << l << "\n";
+    }
+
+    return true;
+}
+
+bool LaunchWowClient()
+{
+    STARTUPINFOW si{ sizeof(si) };
     PROCESS_INFORMATION pi{};
     WCHAR cmd[] = L"Arctium WoW Launcher.exe --staticseed --version ClassicEra";
 
-    if(!CreateProcessW(NULL,cmd,NULL,NULL,FALSE,0,NULL,NULL,&si,&pi)){
-        MessageBoxA(NULL,"Æô¶¯Ê§°Ü£¬ÕÒ²»µ½ Arctium WoW Launcher.exe","´íÎó",MB_OK|MB_ICONERROR);
-        return;
+    if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        return false;
     }
 
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
+    return true;
 }
 
-// ---------- WinSparkle »Øµ÷º¯Êı ----------
-// 1. Ã»ÓĞ·¢ÏÖ¸üĞÂ -> Æô¶¯ÓÎÏ·
+bool ConnectToServer(const std::string& host, uint16_t port)
+{
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return false;
+
+    SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s == INVALID_SOCKET) { WSACleanup(); return false; }
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+
+    hostent* he = gethostbyname(host.c_str());
+    if (he) memcpy(&addr.sin_addr, he->h_addr_list[0], he->h_length);
+    else addr.sin_addr.s_addr = inet_addr(host.c_str());
+
+    bool connected = (connect(s, (sockaddr*)&addr, sizeof(addr)) != SOCKET_ERROR);
+
+    closesocket(s);
+    WSACleanup();
+    return connected;
+}
+
+bool StartHermesProxy()
+{
+    STARTUPINFOW si{ sizeof(si) };
+    PROCESS_INFORMATION pi{};
+    std::wstring exePath = AnsiToWide("HermesProxy\\HermesProxy.exe");
+
+    if (!CreateProcessW(exePath.c_str(), NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        return false;
+    }
+
+    WaitForInputIdle(pi.hProcess, 5000);
+
+    DWORD exitCode = 0;
+    bool running = GetExitCodeProcess(pi.hProcess, &exitCode) && exitCode == STILL_ACTIVE;
+
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    return running;
+}
+
+// ---------- å¯åŠ¨æ¸¸æˆé€»è¾‘ ---------- 
+void StartGame()
+{
+    const std::string host = "wow.chenmin.org";
+
+    if (WritePortalHost(host) != 0) {
+        MessageBoxA(NULL, "æ— æ³•å‘ Config.wtf å†™å…¥é—¨æˆ·ã€‚", "", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    if (!ConnectToServer(host, 1119)) {
+        MessageBoxA(NULL, "æ— æ³•è¿æ¥åˆ°æœåŠ¡å™¨", "è¿æ¥å¤±è´¥", MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    if (!LaunchWowClient()) {
+        MessageBoxA(NULL, "å¯åŠ¨å¤±è´¥ï¼Œæ‰¾ä¸åˆ° Arctium WoW Launcher.exe", "é”™è¯¯", MB_OK | MB_ICONERROR);
+        return;
+    }
+}
+
+void StartLocalProxyGame()
+{
+    const std::string host = "127.0.0.1";
+    const std::string proxyKey = "yLTGiCGZnWCb4FeFtw7p8Q==";
+
+    if (WritePortalHost(host) != 0) {
+        MessageBoxA(NULL, "æ— æ³•å‘ Config.wtf å†™å…¥é—¨æˆ·ã€‚", "", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    if (!UpdateHermesProxyConfig(proxyKey)) {
+        MessageBoxA(NULL, "æ— æ³•ä¿®æ”¹ HermesProxy.config", "", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    bool connected = ConnectToServer(host, 1119);
+    if (!connected) {
+        if (!StartHermesProxy()) {
+            MessageBoxA(NULL, "HermesProxy å¯åŠ¨å¤±è´¥", "", MB_OK | MB_ICONERROR);
+            return;
+        }
+        Sleep(5000);
+        connected = ConnectToServer(host, 1119);
+    }
+
+    if (!connected) {
+        MessageBoxA(NULL, "æ— æ³•è¿æ¥åˆ° HermesProxy", "", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    if (!LaunchWowClient()) {
+        MessageBoxA(NULL, "å¯åŠ¨å¤±è´¥ï¼Œæ‰¾ä¸åˆ° Arctium WoW Launcher.exe", "", MB_OK | MB_ICONERROR);
+        return;
+    }
+}
+
+// ---------- WinSparkle å›è°ƒå‡½æ•° ----------
+// 1. æ²¡æœ‰å‘ç°æ›´æ–° -> å¯åŠ¨æ¸¸æˆ
 void OnDidNotFindUpdate()
 {
     if (g_bAutoStartGame) {
@@ -214,7 +355,7 @@ void OnDidNotFindUpdate()
     }
 }
 
-// 2. ÓÃ»§È¡Ïû¸üĞÂ»ò¹Ø±Õ¸üĞÂ´°¿Ú -> Æô¶¯ÓÎÏ·
+// 2. ç”¨æˆ·å–æ¶ˆæ›´æ–°æˆ–å…³é—­æ›´æ–°çª—å£ -> å¯åŠ¨æ¸¸æˆ
 void OnUpdateCancelled()
 {
     if (g_bAutoStartGame) {
@@ -223,59 +364,63 @@ void OnUpdateCancelled()
     }
 }
 
-// 3. ·¢ÏÖ¸üĞÂ -> ²»×Ô¶¯Æô¶¯ÓÎÏ·£¬ÈÃ WinSparkle UI ´¦Àí¸üĞÂÖØÆô
+// 3. å‘ç°æ›´æ–° -> ä¸è‡ªåŠ¨å¯åŠ¨æ¸¸æˆï¼Œè®© WinSparkle UI å¤„ç†æ›´æ–°é‡å¯
 void OnDidFindUpdate()
 {
-    // ·¢ÏÖ¸üĞÂÁË£¬ÓÃ»§»á¿´µ½¸üĞÂ´°¿Ú
-    // Èç¹ûÓÃ»§Ñ¡Ôñ¸üĞÂ£¬³ÌĞò»áÖØÆô£¬ÓÎÏ·×ÔÈ»²»»áÆô¶¯£¨ÕâÊÇ¶ÔµÄ£¬ÒòÎªÒªÆô¶¯ĞÂ°æ£©
-    // Èç¹ûÓÃ»§µã»÷¡°ÒÔºóÔÙËµ¡±»ò¹Ø±Õ´°¿Ú£¬»á´¥·¢ OnUpdateCancelled£¬´Ó¶øÆô¶¯ÓÎÏ·
+    // å‘ç°æ›´æ–°äº†ï¼Œç”¨æˆ·ä¼šçœ‹åˆ°æ›´æ–°çª—å£
+    // å¦‚æœç”¨æˆ·é€‰æ‹©æ›´æ–°ï¼Œç¨‹åºä¼šé‡å¯ï¼Œæ¸¸æˆè‡ªç„¶ä¸ä¼šå¯åŠ¨ï¼ˆè¿™æ˜¯å¯¹çš„ï¼Œå› ä¸ºè¦å¯åŠ¨æ–°ç‰ˆï¼‰
+    // å¦‚æœç”¨æˆ·ç‚¹å‡»â€œä»¥åå†è¯´â€æˆ–å…³é—­çª—å£ï¼Œä¼šè§¦å‘ OnUpdateCancelledï¼Œä»è€Œå¯åŠ¨æ¸¸æˆ
 }
-// 4. ¡ï¡ï¡ï ¹Ø¼ü»Øµ÷£ºÏÂÔØÍê³É£¬×¼±¸°²×°£¬ÇëÇó¹Ø±Õµ±Ç°³ÌĞò ¡ï¡ï¡ï
+// 4. â˜…â˜…â˜… å…³é”®å›è°ƒï¼šä¸‹è½½å®Œæˆï¼Œå‡†å¤‡å®‰è£…ï¼Œè¯·æ±‚å…³é—­å½“å‰ç¨‹åº â˜…â˜…â˜…
 void OnShutdownRequest() {
-    // WinSparkle ×¼±¸ÔËĞĞ¸üĞÂ°üÁË£¬ÎÒÃÇ±ØĞëÁ¢¿ÌÍË³ö
-    // ·ñÔò¸üĞÂ°üÎŞ·¨¸²¸Çµ±Ç°µÄ exe ÎÄ¼ş
+    // WinSparkle å‡†å¤‡è¿è¡Œæ›´æ–°åŒ…äº†ï¼Œæˆ‘ä»¬å¿…é¡»ç«‹åˆ»é€€å‡º
+    // å¦åˆ™æ›´æ–°åŒ…æ— æ³•è¦†ç›–å½“å‰çš„ exe æ–‡ä»¶
     g_bAutoStartGame = false; 
     
-    // ·¢ËÍ¹Ø±ÕÏûÏ¢¸øÖ÷´°¿Ú
+    // å‘é€å…³é—­æ¶ˆæ¯ç»™ä¸»çª—å£
     if (g_hwnd) {
         PostMessage(g_hwnd, WM_CLOSE, 0, 0);
     }
 }
 
-// ---------- ´°¿Ú¹ı³Ì ----------
+// ---------- çª—å£è¿‡ç¨‹ ----------
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg) {
     case WM_CREATE:
     {
-        // ´´½¨¿Ø¼ş...
-        CreateWindowA("STATIC", "ÕËºÅ£º", WS_CHILD | WS_VISIBLE,
+        // åˆ›å»ºæ§ä»¶...
+        CreateWindowA("STATIC", "è´¦å·ï¼š", WS_CHILD | WS_VISIBLE,
                       20, 20, 60, 20, hwnd, NULL, NULL, NULL);
         g_hEditUsername = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER,
                                         90, 20, 200, 20, hwnd, (HMENU)IDC_EDIT_USERNAME, NULL, NULL);
 
-        CreateWindowA("STATIC", "ÃÜÂë£º", WS_CHILD | WS_VISIBLE,
+        CreateWindowA("STATIC", "å¯†ç ï¼š", WS_CHILD | WS_VISIBLE,
                       20, 50, 60, 20, hwnd, NULL, NULL, NULL);
         g_hEditPassword = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_PASSWORD,
                                         90, 50, 200, 20, hwnd, (HMENU)IDC_EDIT_PASSWORD, NULL, NULL);
 
-        CreateWindowA("STATIC", "ÖØ¸´ÃÜÂë£º", WS_CHILD | WS_VISIBLE,
+        CreateWindowA("STATIC", "é‡å¤å¯†ç ï¼š", WS_CHILD | WS_VISIBLE,
                       20, 80, 90, 20, hwnd, NULL, NULL, NULL);
         g_hEditPassword2 = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_PASSWORD,
                                          90, 80, 200, 20, hwnd, (HMENU)IDC_EDIT_PASSWORD2, NULL, NULL);
 
-        CreateWindowA("STATIC", "ÓÊÏä£º", WS_CHILD | WS_VISIBLE,
+        CreateWindowA("STATIC", "é‚®ç®±ï¼š", WS_CHILD | WS_VISIBLE,
                       20, 110, 60, 20, hwnd, NULL, NULL, NULL);
         g_hEditEmail = CreateWindowA("EDIT", "", WS_CHILD | WS_VISIBLE | WS_BORDER,
                                      90, 110, 200, 20, hwnd, (HMENU)IDC_EDIT_EMAIL, NULL, NULL);
 
-        CreateWindowA("BUTTON", "×¢²áÕËºÅ",
+        CreateWindowA("BUTTON", "æ³¨å†Œè´¦å·",
                       WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                       50, 150, 100, 30, hwnd, (HMENU)IDC_BUTTON_REGISTER, NULL, NULL);
 
-        CreateWindowA("BUTTON", "Æô¶¯ÓÎÏ·",
+        CreateWindowA("BUTTON", "å¯åŠ¨æ¸¸æˆ",
                       WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                       180, 150, 100, 30, hwnd, (HMENU)IDC_BUTTON_START, NULL, NULL);
+
+        CreateWindowA("BUTTON", "å¯åŠ¨æœ¬åœ°ä»£ç†æ¸¸æˆ",
+                      WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                      180, 190, 120, 30, hwnd, (HMENU)IDC_BUTTON_START_LOCAL, NULL, NULL);
     }
     break;
 
@@ -283,7 +428,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         int id = LOWORD(wParam);
         if (id == IDC_BUTTON_REGISTER && HIWORD(wParam) == BN_CLICKED) {
-            // (×¢²áÂß¼­±£³Ö²»±ä)
+            // (æ³¨å†Œé€»è¾‘ä¿æŒä¸å˜)
             char bufUser[64] = { 0 };
             char bufPass[64] = { 0 };
             char bufPass2[64] = { 0 };
@@ -300,16 +445,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             std::string email = bufEmail;
 
             if (username.empty() || password.empty() || password2.empty() || email.empty()) {
-                MessageBoxA(hwnd, "ÇëÊäÈëÍêÕûĞÅÏ¢£¨ÕËºÅ¡¢Á½´ÎÃÜÂë¡¢ÓÊÏä£©", "ÌáÊ¾", MB_OK | MB_ICONINFORMATION);
+                MessageBoxA(hwnd, "è¯·è¾“å…¥å®Œæ•´ä¿¡æ¯ï¼ˆè´¦å·ã€ä¸¤æ¬¡å¯†ç ã€é‚®ç®±ï¼‰", "æç¤º", MB_OK | MB_ICONINFORMATION);
                 break;
             }
 
             std::string resp;
             bool ok = HttpPostRegister(username, password, password2, email, resp);
             if (!ok) {
-                MessageBoxA(hwnd, "ÇëÇóÊ§°Ü£¬ÇëÈ·ÈÏ±¾»ú Web ·şÎñÆ÷ÒÑÆô¶¯¡£", "´íÎó", MB_OK | MB_ICONERROR);
+                MessageBoxA(hwnd, "è¯·æ±‚å¤±è´¥ï¼Œè¯·ç¡®è®¤æœ¬æœº Web æœåŠ¡å™¨å·²å¯åŠ¨ã€‚", "é”™è¯¯", MB_OK | MB_ICONERROR);
             } else {
-                // UTF-8 BOM ´¦Àí
+                // UTF-8 BOM å¤„ç†
                 if (resp.size() >= 3 &&
                     (unsigned char)resp[0] == 0xEF &&
                     (unsigned char)resp[1] == 0xBB &&
@@ -342,21 +487,24 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 std::wstring wMsg = Utf8ToWide(msgText); 
 				std::wstring wTitle;
 				if (success) {
-				    wTitle = L"\u6CE8\u518C\u6210\u529F";  // ¡°×¢²á³É¹¦¡±
+				    wTitle = L"\u6CE8\u518C\u6210\u529F";  // â€œæ³¨å†ŒæˆåŠŸâ€
 				} else {
-				    wTitle = L"\u6CE8\u518C\u5931\u8D25";  // ¡°×¢²áÊ§°Ü¡±
+				    wTitle = L"\u6CE8\u518C\u5931\u8D25";  // â€œæ³¨å†Œå¤±è´¥â€
 				}
 
                 MessageBoxW(hwnd, wMsg.c_str(), wTitle.c_str(), MB_OK | (success ? MB_ICONINFORMATION : MB_ICONERROR));
             }
         }
         else if (id == IDC_BUTTON_START && HIWORD(wParam) == BN_CLICKED) {
-            // ¡ïĞŞ¸Ä£ºµã»÷°´Å¥Ê±£¬ÏÈ¼ì²é¸üĞÂ
-            g_bAutoStartGame = true; // ÉèÖÃ±êÖ¾£¬Èç¹ûÎŞ¸üĞÂÔòÆô¶¯
-           // ¡ï Change: Use WITHOUT_UI to hide the "Up to date" popup
+            // â˜…ä¿®æ”¹ï¼šç‚¹å‡»æŒ‰é’®æ—¶ï¼Œå…ˆæ£€æŸ¥æ›´æ–°
+            g_bAutoStartGame = true; // è®¾ç½®æ ‡å¿—ï¼Œå¦‚æœæ— æ›´æ–°åˆ™å¯åŠ¨
+           // â˜… Change: Use WITHOUT_UI to hide the "Up to date" popup
             // If an update IS found, the UI will still appear automatically.
             // If NO update is found, it silently calls OnDidNotFindUpdate, which starts the game.
-            win_sparkle_check_update_without_ui(); 
+            win_sparkle_check_update_without_ui();
+        }
+        else if (id == IDC_BUTTON_START_LOCAL && HIWORD(wParam) == BN_CLICKED) {
+            StartLocalProxyGame();
         }
     }
     break;
@@ -377,19 +525,19 @@ int APIENTRY WinMain(HINSTANCE hInstance,
                      LPSTR     lpCmdLine,
                      int       nCmdShow)
 {
-    // ³õÊ¼»¯ WinSparkle
+    // åˆå§‹åŒ– WinSparkle
     win_sparkle_set_appcast_url("http://wow.chenmin.org/appcast.xml");
-win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"" APP_VERSION); // ×Ö·û´®×ÖÃæÁ¿Æ´½Ó
+win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"" APP_VERSION); // å­—ç¬¦ä¸²å­—é¢é‡æ‹¼æ¥
     
-    // ×¢²á»Øµ÷º¯Êı
+    // æ³¨å†Œå›è°ƒå‡½æ•°
     win_sparkle_set_did_not_find_update_callback(OnDidNotFindUpdate);
     win_sparkle_set_update_cancelled_callback(OnUpdateCancelled);
     win_sparkle_set_did_find_update_callback(OnDidFindUpdate);
- // ¡ï ×¢²á¹Ø±Õ»Øµ÷£ºÕâÒ»²½ÖÁ¹ØÖØÒª
+ // â˜… æ³¨å†Œå…³é—­å›è°ƒï¼šè¿™ä¸€æ­¥è‡³å…³é‡è¦
     win_sparkle_set_shutdown_request_callback(OnShutdownRequest);
     win_sparkle_init();
     
-    // ×¢Òâ£ºÒÆ³ıÁËÆô¶¯Ê±×Ô¶¯¼ì²é update µÄ´úÂë£¬±ÜÃâ¸ÉÈÅ°´Å¥Âß¼­
+    // æ³¨æ„ï¼šç§»é™¤äº†å¯åŠ¨æ—¶è‡ªåŠ¨æ£€æŸ¥ update çš„ä»£ç ï¼Œé¿å…å¹²æ‰°æŒ‰é’®é€»è¾‘
 
     WNDCLASSEXA wc = { 0 };
     wc.cbSize = sizeof(WNDCLASSEXA);
@@ -400,14 +548,14 @@ win_sparkle_set_app_details(L"WoW Launcher Project", L"WoW Launcher", L"" APP_VE
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 
     if (!RegisterClassExA(&wc)) {
-        MessageBoxA(NULL, "×¢²á´°¿ÚÀàÊ§°Ü", "´íÎó", MB_OK | MB_ICONERROR);
+        MessageBoxA(NULL, "æ³¨å†Œçª—å£ç±»å¤±è´¥", "é”™è¯¯", MB_OK | MB_ICONERROR);
         return 1;
     }
 
-  std::string windowTitle = "WoW Æô¶¯Æ÷ & ×¢²á " + std::string(APP_VERSION);
+  std::string windowTitle = "WoW å¯åŠ¨å™¨ & æ³¨å†Œ " + std::string(APP_VERSION);
     g_hwnd = CreateWindowExA(0, "WoWLauncherWndClass", windowTitle.c_str(),
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 340, 250, NULL, NULL, hInstance, NULL);
+        CW_USEDEFAULT, CW_USEDEFAULT, 360, 280, NULL, NULL, hInstance, NULL);
 
     if (!g_hwnd) return 1;
 
